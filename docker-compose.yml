@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  google-sheets-sync:
+    build: .
+    container_name: google-sheets-sync
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - SPREADSHEET_ID=${SPREADSHEET_ID}
+      - SOURCE_SHEET_NAME=${SOURCE_SHEET_NAME}
+      - TARGET_SHEET_NAME=${TARGET_SHEET_NAME}
+      - CHECK_INTERVAL=${CHECK_INTERVAL:-1800}
+    volumes:
+      - ./logs:/app/logs:rw
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
