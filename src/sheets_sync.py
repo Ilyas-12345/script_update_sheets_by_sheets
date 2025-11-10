@@ -102,15 +102,24 @@ class GoogleSheetsSync:
     def insert_row_from_column_a(self, worksheet, row_data):
         """Вставить строку начиная с колонки A"""
         try:
-            # Находим первую полностью пустую строку
             all_data = worksheet.get_all_values()
             empty_row_num = len(all_data) + 1
-
-            # Формируем диапазон для вставки (начинается с колонки A)
             range_start = f"A{empty_row_num}"
 
-            # Вставляем данные начиная с колонки A
-            worksheet.update([row_data], range_start)
+            # Вставляем данные с явным указанием формата
+            worksheet.update([row_data], range_start,
+                             value_input_option='USER_ENTERED')
+
+            # Устанавливаем формат текста для всего диапазона
+            end_col = chr(64 + len(row_data))  # Последняя колонка
+            range_to_format = f"A{empty_row_num}:{end_col}{empty_row_num}"
+
+            # Форматируем как текст
+            worksheet.format(range_to_format, {
+                "numberFormat": {
+                    "type": "TEXT"
+                }
+            })
 
         except Exception as e:
             print(f"Ошибка при вставке строки: {e}")
