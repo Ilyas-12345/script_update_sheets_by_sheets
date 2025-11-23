@@ -197,7 +197,7 @@ class GoogleSheetsSync:
 
         while True:
             try:
-                print(f"Запуск - время {datetime.now().strftime("%H:%M:%S")}")
+                print(f"Запуск - время {datetime.now().strftime('%H:%M:%S')}")
                 self.delete_row_from_file()
                 self.check_and_copy_rows()
                 time.sleep(self.check_interval)
