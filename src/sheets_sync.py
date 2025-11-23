@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import gspread
 import time
 import json
@@ -51,7 +53,6 @@ class GoogleSheetsSync:
         """Сохранить список обработанных строк в файл"""
         try:
             # Создаем директорию если не существует
-            os.makedirs(os.path.dirname(self.processed_file), exist_ok=True)
             with open(self.processed_file, 'w', encoding='utf-8') as f:
                 json.dump(list(self.processed_rows), f, ensure_ascii=False, indent=2)
         except Exception as e:
@@ -78,15 +79,27 @@ class GoogleSheetsSync:
 
                 if len(row) > 4 and row[4].strip().lower() == "одобрена":
                     row_signature = self.create_row_signature(row)
-
                     if row_signature not in self.processed_rows:
                         print(f"Найдена новая строка для копирования: строка {row_num}")
 
-                        new_row = [row[1], row[2], row[0], row[3], row[7], row[11], row[12], row[13], row[5]]
+                        new_row = [row[1], row[2], row[9], row[3], row[7], row[11], row[12], row[13], row[5]]
+                        if row[5].replace('.', '').isdigit():
+                            try:
+                                date_num = float(row[5])
+                                if 10000 < date_num < 50000:  # Диапазон дат
+                                    # Преобразуем в datetime и затем в строку нужного формата
+                                    converted_date = self.convert_serial_date_to_string(date_num)
+                                    new_row[8] = converted_date
+                                    print(f"Преобразована дата: {row[5]} -> {converted_date}")
+                            except ValueError:
+                                pass  # Не число, оставляем как есть
+
+                        print(row[5])
                         self.insert_row_from_column_a(target_sheet, new_row)
 
                         self.processed_rows.add(row_signature)
                         new_rows_copied += 1
+                        time.sleep(1.1)
 
                         print(f"Строка {row_num} скопирована в лист '{self.target_sheet_name}'")
 
@@ -99,6 +112,62 @@ class GoogleSheetsSync:
         except Exception as e:
             print(f"Ошибка при проверке строк: {e}")
 
+    def convert_serial_date_to_string(self, serial_date):
+        """Преобразует серийный номер даты в строку формата DD.MM.YYYY"""
+        try:
+            from datetime import datetime, timedelta
+            # Google Sheets считает от 30 декабря 1899 года
+            base_date = datetime(1899, 12, 30)
+            target_date = base_date + timedelta(days=int(serial_date))
+            return target_date.strftime("%d.%m.%Y")
+        except Exception as e:
+            print(f"Ошибка преобразования даты {serial_date}: {e}")
+            return str(serial_date)
+
+    def delete_row_from_file(self):
+        """
+        Удаляет строку из файла, содержащую указанное значение
+        """
+        try:
+            if not os.path.exists(self.processed_file):
+                with open(self.processed_file, 'w', encoding='utf-8') as file:
+                    json.dump([], file, ensure_ascii=False, indent=2)
+                print(f"Создан новый файл: {self.processed_file}")
+
+            with open(self.processed_file, 'r', encoding='utf-8') as file:
+                lines = json.load(file)
+
+            if os.path.exists(self.processed_file) and os.path.getsize(self.processed_file) == 0:
+                print("Файл пустой")
+                return
+
+            # Ищем строку, содержащую search_value, и фильтруем её
+            spreadsheet = self.get_spreadsheet()
+            source_sheet = spreadsheet.worksheet(self.source_sheet_name)
+            all_data = source_sheet.get_all_values()
+            data_table = [data[3] for data in all_data]
+
+            new_lines = []
+            deleted = False
+
+            for line in lines:
+                # Убираем лишние пробелы и символы
+                clean_line = line.split('|')[-1].strip()
+
+                # Проверяем, содержит ли строка искомое значение
+                if clean_line not in data_table:
+                    pass
+                    #print(f"Удалена строка: {clean_line}")
+                else:
+                    new_lines.append(line)
+
+            # Записываем обновленные данные обратно в файл
+            with open(self.processed_file, 'w', encoding='utf-8') as file:
+                json.dump(list(new_lines), file, ensure_ascii=False, indent=2)
+
+        except Exception as e:
+            print(f"Ошибка при удалении строки из файла: {e}")
+
     def insert_row_from_column_a(self, worksheet, row_data):
         """Вставить строку начиная с колонки A"""
         try:
@@ -106,20 +175,10 @@ class GoogleSheetsSync:
             empty_row_num = len(all_data) + 1
             range_start = f"A{empty_row_num}"
 
-            # Вставляем данные с явным указанием формата
-            worksheet.update([row_data], range_start,
-                             value_input_option='USER_ENTERED')
+            # Используем USER_ENTERED с уже преобразованными данными
+            worksheet.update([row_data], range_start, value_input_option='USER_ENTERED')
 
-            # Устанавливаем формат текста для всего диапазона
-            end_col = chr(64 + len(row_data))  # Последняя колонка
-            range_to_format = f"A{empty_row_num}:{end_col}{empty_row_num}"
-
-            # Форматируем как текст
-            worksheet.format(range_to_format, {
-                "numberFormat": {
-                    "type": "TEXT"
-                }
-            })
+            print(f"Вставлена строка: {row_data}")
 
         except Exception as e:
             print(f"Ошибка при вставке строки: {e}")
@@ -138,6 +197,8 @@ class GoogleSheetsSync:
 
         while True:
             try:
+                print(f"Запуск - время {datetime.now().strftime("%H:%M:%S")}")
+                self.delete_row_from_file()
                 self.check_and_copy_rows()
                 time.sleep(self.check_interval)
             except KeyboardInterrupt:
