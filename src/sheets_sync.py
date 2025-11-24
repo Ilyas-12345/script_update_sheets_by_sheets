@@ -60,7 +60,7 @@ class GoogleSheetsSync:
 
     def create_row_signature(self, row):
         """Создать уникальную сигнатуру для строки"""
-        key_data = [str(row[i]) for i in [0, 1, 2, 3]]
+        key_data = [str(row[i]) for i in [1, 3]]
         return "|".join(key_data)
 
     def check_and_copy_rows(self):
@@ -133,37 +133,35 @@ class GoogleSheetsSync:
                 with open(self.processed_file, 'w', encoding='utf-8') as file:
                     json.dump([], file, ensure_ascii=False, indent=2)
                 print(f"Создан новый файл: {self.processed_file}")
+                return
+
+            if os.path.getsize(self.processed_file) == 0:
+                print("Файл пустой")
+                return
 
             with open(self.processed_file, 'r', encoding='utf-8') as file:
                 lines = json.load(file)
-
-            if os.path.exists(self.processed_file) and os.path.getsize(self.processed_file) == 0:
-                print("Файл пустой")
-                return
 
             # Ищем строку, содержащую search_value, и фильтруем её
             spreadsheet = self.get_spreadsheet()
             source_sheet = spreadsheet.worksheet(self.source_sheet_name)
             all_data = source_sheet.get_all_values()
-            data_table = [data[3] for data in all_data]
+            data_table = [row[1].strip() for row in all_data if row]
+            print(data_table)
 
             new_lines = []
-            deleted = False
-
             for line in lines:
-                # Убираем лишние пробелы и символы
-                clean_line = line.split('|')[-1].strip()
+                clean_line = line.split('|')[0].strip()
 
-                # Проверяем, содержит ли строка искомое значение
-                if clean_line not in data_table:
-                    pass
-                    #print(f"Удалена строка: {clean_line}")
-                else:
+                if clean_line in data_table:
                     new_lines.append(line)
+                else:
+                    pass
+                    print(f"Удалена строка: {clean_line}")
 
             # Записываем обновленные данные обратно в файл
             with open(self.processed_file, 'w', encoding='utf-8') as file:
-                json.dump(list(new_lines), file, ensure_ascii=False, indent=2)
+                json.dump(new_lines, file, ensure_ascii=False, indent=2)
 
         except Exception as e:
             print(f"Ошибка при удалении строки из файла: {e}")
