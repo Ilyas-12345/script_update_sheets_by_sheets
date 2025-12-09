@@ -60,8 +60,8 @@ class GoogleSheetsSync:
 
     def create_row_signature(self, row):
         """Создать уникальную сигнатуру для строки"""
-        key_data = [str(row[i]) for i in [1, 3]]
-        return "|".join(key_data)
+        key_data = str(row[1])
+        return key_data
 
     def check_and_copy_rows(self):
         """Проверить и скопировать строки с 'одобрена' в колонке E"""
@@ -94,7 +94,6 @@ class GoogleSheetsSync:
                             except ValueError:
                                 pass  # Не число, оставляем как есть
 
-                        print(row[5])
                         self.insert_row_from_column_a(target_sheet, new_row)
 
                         self.processed_rows.add(row_signature)
@@ -147,11 +146,10 @@ class GoogleSheetsSync:
             source_sheet = spreadsheet.worksheet(self.source_sheet_name)
             all_data = source_sheet.get_all_values()
             data_table = [row[1].strip() for row in all_data if row]
-            print(data_table)
 
             new_lines = []
             for line in lines:
-                clean_line = line.split('|')[0].strip()
+                clean_line = line.strip()
 
                 if clean_line in data_table:
                     new_lines.append(line)
